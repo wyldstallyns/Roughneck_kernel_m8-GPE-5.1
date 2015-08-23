@@ -1055,7 +1055,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			max_load_freq = load_freq;
 
 		load_at_max_freq += (cur_load * policy->cur) /
-					policy->cpuinfo.max_freq;
+					policy->max;
 	}
 
 	for_each_online_cpu(j) {
