@@ -87,7 +87,6 @@ static unsigned int max_cpus_online_susp = DEFAULT_MAX_CPUS_ONLINE_SUSP;
 */
 
 static unsigned int hotplug_suspend = 0;
-module_param_named(hotplug_suspend, hotplug_suspend, uint, 0644);
 
 /* HotPlug Driver Tuning */
 static unsigned int target_cpus = 0;
@@ -565,6 +564,7 @@ show_one(cpus_boosted, cpus_boosted);
 show_one(min_cpus_online, min_cpus_online);
 show_one(max_cpus_online, max_cpus_online);
 show_one(max_cpus_online_susp, max_cpus_online_susp);
+show_one(hotplug_suspend, hotplug_suspend);
 show_one(full_mode_profile, full_mode_profile);
 show_one(cpu_nr_run_threshold, cpu_nr_run_threshold);
 show_one(def_sampling_ms, def_sampling_ms);
@@ -592,6 +592,7 @@ static ssize_t store_##file_name		\
 }
 
 store_one(cpus_boosted, cpus_boosted);
+store_one(hotplug_suspend, hotplug_suspend);
 store_one(full_mode_profile, full_mode_profile);
 store_one(cpu_nr_run_threshold, cpu_nr_run_threshold);
 store_one(def_sampling_ms, def_sampling_ms);
@@ -718,6 +719,7 @@ KERNEL_ATTR_RW(cpus_boosted);
 KERNEL_ATTR_RW(min_cpus_online);
 KERNEL_ATTR_RW(max_cpus_online);
 KERNEL_ATTR_RW(max_cpus_online_susp);
+KERNEL_ATTR_RW(hotplug_suspend);
 KERNEL_ATTR_RW(full_mode_profile);
 KERNEL_ATTR_RW(cpu_nr_run_threshold);
 KERNEL_ATTR_RW(boost_lock_duration);
@@ -733,6 +735,7 @@ static struct attribute *intelli_plug_attrs[] = {
 	&min_cpus_online_attr.attr,
 	&max_cpus_online_attr.attr,
 	&max_cpus_online_susp_attr.attr,
+	&hotplug_suspend_attr.attr,
 	&full_mode_profile_attr.attr,
 	&cpu_nr_run_threshold_attr.attr,
 	&boost_lock_duration_attr.attr,
