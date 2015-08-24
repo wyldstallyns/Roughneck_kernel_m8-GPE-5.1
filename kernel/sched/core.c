@@ -1693,7 +1693,7 @@ unsigned long this_cpu_load(void)
 }
 
 #ifdef CONFIG_INTELLI_PLUG
-+unsigned long avg_nr_running(void)
+unsigned long avg_nr_running(void)
 {
 	unsigned long i, sum = 0;
 	unsigned int seqcnt, ave_nr_running;
