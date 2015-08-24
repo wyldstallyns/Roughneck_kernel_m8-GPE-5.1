@@ -26,6 +26,8 @@ struct cpu {
 	struct device dev;
 };
 
+extern bool wakeup_boost;
+extern bool check_cpuboost(int cpu);
 extern int register_cpu(struct cpu *cpu, int num);
 extern struct device *get_cpu_device(unsigned cpu);
 extern bool cpu_is_hotpluggable(unsigned cpu);
