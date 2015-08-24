@@ -86,7 +86,8 @@ static unsigned int max_cpus_online_susp = DEFAULT_MAX_CPUS_ONLINE_SUSP;
 * if set = 0, then hoplug will be active all the time.
 */
 
-/* static unsigned int hotplug_suspend = 0; */
+static unsigned int hotplug_suspend = 0;
+module_param_named(hotplug_suspend, hotplug_suspend, uint, 0644);
 
 /* HotPlug Driver Tuning */
 static unsigned int target_cpus = 0;
