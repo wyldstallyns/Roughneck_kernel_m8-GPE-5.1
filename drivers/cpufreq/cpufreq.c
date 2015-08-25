@@ -169,7 +169,7 @@ struct cpufreq_policy *cpufreq_cpu_get(unsigned int cpu)
 	if (!data)
 		goto err_out_put_module;
 
-	if (!sysfs && !kobject_get(&data->kobj))
+	if (!kobject_get(&data->kobj))
 		goto err_out_put_module;
 
 	spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
@@ -183,34 +183,15 @@ err_out:
 	return NULL;
 }
 
-struct cpufreq_policy *cpufreq_cpu_get(unsigned int cpu)
-{
-	return __cpufreq_cpu_get(cpu, 0);
-}
 EXPORT_SYMBOL_GPL(cpufreq_cpu_get);
-
-static struct cpufreq_policy *cpufreq_cpu_get_sysfs(unsigned int cpu)
-{
-	return __cpufreq_cpu_get(cpu, 1);
-}
-
-static void __cpufreq_cpu_put(struct cpufreq_policy *data, int sysfs)
-{
-	if (!sysfs)
-		kobject_put(&data->kobj);
-	module_put(cpufreq_driver->owner);
-}
 
 void cpufreq_cpu_put(struct cpufreq_policy *data)
 {
-	__cpufreq_cpu_put(data, 0);
+	kobject_put(&data->kobj);
+	module_put(cpufreq_driver->owner);
 }
-EXPORT_SYMBOL_GPL(cpufreq_cpu_put);
 
-static void cpufreq_cpu_put_sysfs(struct cpufreq_policy *data)
-{
-	__cpufreq_cpu_put(data, 1);
-}
+EXPORT_SYMBOL_GPL(cpufreq_cpu_put);
 
 /*********************************************************************
  *            EXTERNALLY AFFECTING FREQUENCY CHANGES                 *
@@ -690,12 +671,25 @@ static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
 	struct cpufreq_policy *policy = to_policy(kobj);
 	struct freq_attr *fattr = to_attr(attr);
 	ssize_t ret = -EINVAL;
-	policy = cpufreq_cpu_get_sysfs(policy->cpu);
-	if (!policy)
-		goto no_policy;
+	unsigned long flags;
+
+	spin_lock_irqsave(&cpufreq_driver_lock, flags);
+
+	if (!cpufreq_driver) {
+		spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+		return ret;
+	}
+
+	policy = per_cpu(cpufreq_cpu_data, policy->cpu);
+	if (!policy) {
+		spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+		return ret;
+	}
+
+	spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
 
 	if (lock_policy_rwsem_read(policy->cpu) < 0)
-		goto fail;
+		return ret;
 
 	if (fattr->show)
 		ret = fattr->show(policy, buf);
@@ -703,9 +697,7 @@ static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
 		ret = -EIO;
 
 	unlock_policy_rwsem_read(policy->cpu);
-fail:
-	cpufreq_cpu_put_sysfs(policy);
-no_policy:
+
 	return ret;
 }
 
@@ -715,12 +707,25 @@ static ssize_t store(struct kobject *kobj, struct attribute *attr,
 	struct cpufreq_policy *policy = to_policy(kobj);
 	struct freq_attr *fattr = to_attr(attr);
 	ssize_t ret = -EINVAL;
-	policy = cpufreq_cpu_get_sysfs(policy->cpu);
-	if (!policy)
-		goto no_policy;
+	unsigned long flags;
+
+	spin_lock_irqsave(&cpufreq_driver_lock, flags);
+
+	if (!cpufreq_driver) {
+		spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+		return ret;
+	}
+
+	policy = per_cpu(cpufreq_cpu_data, policy->cpu);
+	if (!policy) {
+		spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+		return ret;
+	}
+
+	spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
 
 	if (lock_policy_rwsem_write(policy->cpu) < 0)
-		goto fail;
+		return ret;
 
 	if (fattr->store)
 		ret = fattr->store(policy, buf, count);
@@ -728,9 +733,6 @@ static ssize_t store(struct kobject *kobj, struct attribute *attr,
 		ret = -EIO;
 
 	unlock_policy_rwsem_write(policy->cpu);
-fail:
-	cpufreq_cpu_put_sysfs(policy);
-no_policy:
 	return ret;
 }
 
