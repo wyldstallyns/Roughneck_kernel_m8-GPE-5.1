@@ -247,6 +247,11 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	struct cpufreq_work_struct *cpu_work = NULL;
 
 	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
+	
+	if (target_freq == policy->cur) {
+		ret = 0;
+		goto done;
+	}
 
 	if (per_cpu(cpufreq_suspend, policy->cpu).device_suspended) {
 		pr_debug("cpufreq: cpu%d scheduling frequency change "
