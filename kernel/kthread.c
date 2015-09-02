@@ -397,7 +397,7 @@ bool queue_kthread_work(struct kthread_worker *worker,
 	if (list_empty(&work->node)) {
 		list_add_tail(&work->node, &worker->work_list);
 		work->queue_seq++;
-		if (!worker->current_work && likely(worker->task))
+		if (likely(worker->task))
 			wake_up_process(worker->task);
 		ret = true;
 	}
