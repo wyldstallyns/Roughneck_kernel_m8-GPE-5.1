@@ -127,7 +127,7 @@ int mdss_mdp_overlay_req_check(struct msm_fb_data_type *mfd,
 		min_dst_size = 2;
 	}
 
-	if (req->z_order >= MDSS_MDP_MAX_STAGE) {
+	if (req->z_order >= (MDSS_MDP_MAX_STAGE + MDSS_MDP_STAGE_0)) {
 		pr_err("zorder %d out of range\n", req->z_order);
 		return -ERANGE;
 	}
@@ -284,6 +284,78 @@ static int __mdp_pipe_tune_perf(struct mdss_mdp_pipe *pipe)
 	return 0;
 }
 
+static int __mdss_mdp_validate_pxl_extn(struct mdss_mdp_pipe *pipe)
+{
+	int plane;
+
+	for (plane = 0; plane < MAX_PLANES; plane++) {
+		u32 hor_req_pixels, hor_fetch_pixels;
+		u32 hor_ov_fetch, vert_ov_fetch;
+		u32 vert_req_pixels, vert_fetch_pixels;
+		u32 src_w = pipe->src.w >> pipe->horz_deci;
+		u32 src_h = pipe->src.h >> pipe->vert_deci;
+
+		/*
+		 * plane 1 and 2 are for chroma and are same. While configuring
+		 * HW, programming only one of the chroma components is
+		 * sufficient.
+		 */
+		if (plane == 2)
+			continue;
+
+		/*
+		 * For chroma plane, width is half for the following sub sampled
+		 * formats
+		 */
+		if (plane == 1 &&
+		    ((pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_420) ||
+		     (pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_H2V1)))
+			src_w >>= 1;
+
+		if (plane == 1 &&
+		    ((pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_420) ||
+		     (pipe->src_fmt->chroma_sample == MDSS_MDP_CHROMA_H1V2)))
+			src_h >>= 1;
+
+		hor_req_pixels = pipe->scale.roi_w[plane] +
+			pipe->scale.num_ext_pxls_left[plane] +
+			pipe->scale.num_ext_pxls_right[plane];
+
+		hor_fetch_pixels = src_w +
+			pipe->scale.left_ftch[plane] +
+			pipe->scale.left_rpt[plane] +
+			pipe->scale.right_ftch[plane] +
+			pipe->scale.right_rpt[plane];
+
+		hor_ov_fetch = src_w + pipe->scale.left_ftch[plane] +
+			pipe->scale.right_ftch[plane];
+
+		vert_req_pixels = pipe->scale.num_ext_pxls_top[plane] +
+			pipe->scale.num_ext_pxls_btm[plane];
+
+		vert_fetch_pixels = pipe->scale.top_ftch[plane] +
+			pipe->scale.top_rpt[plane] +
+			pipe->scale.btm_ftch[plane] +
+			pipe->scale.btm_rpt[plane];
+
+		vert_ov_fetch = src_h + pipe->scale.top_ftch[plane] +
+			pipe->scale.btm_ftch[plane];
+
+		if ((hor_req_pixels != hor_fetch_pixels) ||
+			(hor_ov_fetch > pipe->img_width) ||
+			(vert_req_pixels != vert_fetch_pixels) ||
+			(vert_ov_fetch > pipe->img_height)) {
+			pr_err("err: h_req:%d h_fetch:%d v_req:%d v_fetch:%d src_img:[%d,%d]\n",
+					hor_req_pixels, hor_fetch_pixels,
+					vert_req_pixels, vert_fetch_pixels,
+					pipe->img_width, pipe->img_height);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int __mdss_mdp_overlay_setup_scaling(struct mdss_mdp_pipe *pipe)
 {
 	u32 src;
@@ -291,8 +363,11 @@ static int __mdss_mdp_overlay_setup_scaling(struct mdss_mdp_pipe *pipe)
 
 	src = pipe->src.w >> pipe->horz_deci;
 
-	if (pipe->scale.enable_pxl_ext)
-		return 0;
+	if (pipe->scale.enable_pxl_ext) {
+		rc = __mdss_mdp_validate_pxl_extn(pipe);
+		return rc;
+	}
+	
 	memset(&pipe->scale, 0, sizeof(struct mdp_scale_data));
 	rc = mdss_mdp_calc_phase_step(src, pipe->dst.w,
 			&pipe->scale.phase_step_x[0]);
@@ -1056,6 +1131,9 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 	bool need_cleanup = false;
 	struct mdp_display_commit disp_commit;
 	memset(&disp_commit, 0, sizeof(disp_commit));
+	
+	if (!ctl)
+		return -ENODEV;
 
 	ATRACE_BEGIN(__func__);
 	if (ctl->shared_lock) {
@@ -2428,6 +2506,9 @@ static int __handle_ioctl_overlay_prepare(struct msm_fb_data_type *mfd,
 	struct mdp_overlay *req_list[OVERLAY_MAX];
 	struct mdp_overlay *overlays;
 	int i, ret;
+	
+	if (!mfd_to_ctl(mfd))
+		return -ENODEV;
 
 	if (copy_from_user(&ovlist, argp, sizeof(ovlist)))
 		return -EFAULT;
