@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -969,8 +969,8 @@ u32 send_adm_apr(void *buf, u32 opcode)
 		(atomic_read(&rtac_adm_apr_data.cmd_state) == 0),
 		msecs_to_jiffies(TIMEOUT_MS));
 	if (!result) {
-		pr_err("%s: Set params timed out port = %d, copp = %d\n",
-			__func__, port_index, copp_id);
+		pr_err("%s: Set params timed out copp = %d\n", __func__,
+			copp_id);
 		goto err;
 	}
 	if (atomic_read(&rtac_common.apr_err_code)) {
