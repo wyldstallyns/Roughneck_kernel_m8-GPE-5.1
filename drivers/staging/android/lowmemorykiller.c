@@ -42,6 +42,8 @@
 #include <linux/swap.h>
 #include <linux/fs.h>
 
+#include <trace/events/memkill.h>
+
 #ifdef CONFIG_HIGHMEM
 	#define _ZONE ZONE_HIGHMEM
 #else
@@ -314,6 +316,11 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 #endif
 		}
+		if (fatal_signal_pending(p)) {
+			lowmem_print(2, "skip slow dying process %d\n", p->pid);
+			task_unlock(p);
+			continue;
+		}
 		tasksize = get_mm_rss(p->mm);
 		task_unlock(p);
 		if (tasksize <= 0)
@@ -363,6 +370,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     other_free << 2, other_file << 2, reserved_free << 2, cma_free << 2, use_cma);
 
 		lowmem_deathpending_timeout = jiffies + HZ;
+		trace_lmk_kill(selected->pid, selected->comm,
+				selected_oom_score_adj, selected_tasksize,
+				min_score_adj);
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 #define DUMP_INFO_OOM_SCORE_ADJ_THRESHOLD	((7 * OOM_SCORE_ADJ_MAX) / -OOM_DISABLE)
 		if (selected_oom_score_adj < DUMP_INFO_OOM_SCORE_ADJ_THRESHOLD)
