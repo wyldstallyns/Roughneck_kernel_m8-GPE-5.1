@@ -21,6 +21,9 @@ obj-$(CONFIG_CPU_FREQ_GOV_HELLSACTIVE)	+= cpufreq_hellsactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_IMPULSE)      += cpufreq_impulse.o
 obj-$(CONFIG_CPU_FREQ_GOV_BLU_ACTIVE)	+= cpufreq_blu_active.o
 
+# CPU Input Boost
+obj-$(CONFIG_CPU_INPUT_BOOST)		+= cpu_input_boost.o
+
 # CPUfreq cross-arch helpers
 obj-$(CONFIG_CPU_FREQ_TABLE)		+= freq_table.o
 
