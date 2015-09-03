@@ -3536,7 +3536,7 @@ static int taiko_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		else
 			wcd9xxx_enable_high_perf_mode(codec, &taiko_p->clsh_d,
 						WCD9XXX_CLSAB_STATE_HPHL,
-						WCD9XXX_CLSAB_REQ_ENABLE)
+						WCD9XXX_CLSAB_REQ_ENABLE);
 						
 		ret = wcd9xxx_mbhc_get_impedance(&taiko_p->mbhc,
 					&impedl, &impedr);
