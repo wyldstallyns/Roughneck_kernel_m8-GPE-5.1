@@ -35,37 +35,12 @@
 #ifndef _EXFAT_CONFIG_H
 #define _EXFAT_CONFIG_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /*======================================================================*/
 /*                                                                      */
 /*                        FFS CONFIGURATIONS                            */
 /*                  (CHANGE THIS PART IF REQUIRED)                      */
 /*                                                                      */
 /*======================================================================*/
-
-/*----------------------------------------------------------------------*/
-/*  Target OS Platform                                                  */
-/*----------------------------------------------------------------------*/
-
-#define OS_NONOS                1
-#define OS_LINUX                2
-
-#define FFS_CONFIG_OS           OS_LINUX
-
-/*----------------------------------------------------------------------*/
-/* Set this definition to 1 to support APIs with pointer parameters     */
-/*     to 32-bit variables (e.g. read, write, seek, get_filesize)       */
-/*----------------------------------------------------------------------*/
-#define FFS_CONFIG_LEGACY_32BIT_API     0
-
-/*----------------------------------------------------------------------*/
-/* Set this definition to 1 to support APIs with pointer parameters     */
-/*     to 32-bit variables (e.g. read, write, seek, get_filesize)       */
-/*----------------------------------------------------------------------*/
-#define FFS_CONFIG_LEGACY_32BIT_API     0
 
 /*----------------------------------------------------------------------*/
 /* Set appropriate definitions to 1's to support the languages          */
@@ -89,14 +64,25 @@ extern "C" {
 /*----------------------------------------------------------------------*/
 /* Feature Config                                                       */
 /*----------------------------------------------------------------------*/
-#define EXFAT_CONFIG_DISCARD		1	// mount option -o discard support
-#define EXFAT_CONFIG_KERNEL_DEBUG	1	// kernel debug features via ioctl
-#define EXFAT_CONFIG_DEBUG_MSG		0	// debugging message on/off
+#ifndef CONFIG_EXFAT_DISCARD
+#define CONFIG_EXFAT_DISCARD		1	/* mount option -o discard support */
+#endif
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
+#ifndef CONFIG_EXFAT_DELAYED_SYNC
+#define CONFIG_EXFAT_DELAYED_SYNC 0
+#endif
+
+#ifndef CONFIG_EXFAT_KERNEL_DEBUG
+#define CONFIG_EXFAT_KERNEL_DEBUG	1	/* kernel debug features via ioctl */
+#endif
+
+#ifndef CONFIG_EXFAT_DEBUG_MSG
+#define CONFIG_EXFAT_DEBUG_MSG		0	/* debugging message on/off */
+#endif
+
+#ifndef CONFIG_EXFAT_DEFAULT_CODEPAGE
+#define CONFIG_EXFAT_DEFAULT_CODEPAGE	437
+#define CONFIG_EXFAT_DEFAULT_IOCHARSET	"utf8"
+#endif
 
 #endif /* _EXFAT_CONFIG_H */
-
-/* end of exfat_config.h */
