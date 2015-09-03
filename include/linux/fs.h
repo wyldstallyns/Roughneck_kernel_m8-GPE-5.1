@@ -214,7 +214,9 @@ struct inodes_stat_t {
 #define FIGETBSZ   _IO(0x00,2)	
 #define FIFREEZE	_IOWR('X', 119, int)	
 #define FITHAW		_IOWR('X', 120, int)	
-#define FITRIM		_IOWR('X', 121, struct fstrim_range)	
+#define FITRIM		_IOWR('X', 121, struct fstrim_range)
+
+#define FIDTRIM	_IOWR('f', 128, struct fstrim_range)	/* Deep discard trim */
 
 #define	FS_IOC_GETFLAGS			_IOR('f', 1, long)
 #define	FS_IOC_SETFLAGS			_IOW('f', 2, long)
