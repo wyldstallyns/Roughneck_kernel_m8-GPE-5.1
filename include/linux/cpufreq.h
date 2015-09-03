@@ -321,6 +321,7 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 /*********************************************************************
  *                        CPUFREQ 2.6. INTERFACE                     *
  *********************************************************************/
+u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy);
 int cpufreq_get_policy(struct cpufreq_policy *policy, unsigned int cpu);
 int cpufreq_update_policy(unsigned int cpu);
 
@@ -401,9 +402,9 @@ extern struct cpufreq_governor cpufreq_gov_intellimm;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_LIONHEART)
 extern struct cpufreq_governor 		cpufreq_gov_lionheart;
 #define CPUFREQ_DEFAULT_GOVERNOR (&cpufreq_gov_lionheart)
-#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_WHEATLEY)
-extern struct cpufreq_governor cpufreq_gov_wheatley;
-#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_wheatley)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_UBERDEMAND)
+extern struct cpufreq_governor cpufreq_gov_uberdemand;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_uberdemand)
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_DANCEDANCE)
 extern struct cpufreq_governor cpufreq_gov_dancedance;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_dancedance)

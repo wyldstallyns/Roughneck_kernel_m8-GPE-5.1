@@ -1,5 +1,5 @@
 # CPUfreq core
-obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
+obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o cpu-boost.o
 # CPUfreq stats
 obj-$(CONFIG_CPU_FREQ_STAT)             += cpufreq_stats.o
 
@@ -13,13 +13,16 @@ obj-$(CONFIG_CPU_FREQ_GOV_INTERACTIVE)	+= cpufreq_interactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_INTELLIMM)   	+= cpufreq_intellimm.o
 obj-$(CONFIG_CPU_FREQ_GOV_SMARTMAX)	+= cpufreq_smartmax.o
 obj-$(CONFIG_CPU_FREQ_GOV_SLIM)		+= cpufreq_slim.o
-obj-$(CONFIG_CPU_FREQ_GOV_WHEATLEY)	+= cpufreq_wheatley.o
+obj-$(CONFIG_CPU_FREQ_GOV_UBERDEMAND)	+= cpufreq_uberdemand.o
 obj-$(CONFIG_CPU_FREQ_GOV_LIONHEART)	+= cpufreq_lionheart.o
 obj-$(CONFIG_CPU_FREQ_GOV_DANCEDANCE)	+= cpufreq_dancedance.o
 obj-$(CONFIG_CPU_FREQ_GOV_PRESERVATIVE)	+= cpufreq_preservative.o
 obj-$(CONFIG_CPU_FREQ_GOV_HELLSACTIVE)	+= cpufreq_hellsactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_IMPULSE)      += cpufreq_impulse.o
 obj-$(CONFIG_CPU_FREQ_GOV_BLU_ACTIVE)	+= cpufreq_blu_active.o
+
+# CPU Input Boost
+obj-$(CONFIG_CPU_INPUT_BOOST)		+= cpu_input_boost.o
 
 # CPUfreq cross-arch helpers
 obj-$(CONFIG_CPU_FREQ_TABLE)		+= freq_table.o
