@@ -49,9 +49,12 @@ static struct workqueue_struct *cpu_boost_wq;
 
 static struct work_struct input_boost_work;
 
+static unsigned int cpu_boost = 0;
+module_param(cpu_boost, uint, 0644);
+
 static struct notifier_block notif;
 
-static unsigned int boost_ms;
+static unsigned int boost_ms = 20;
 module_param(boost_ms, uint, 0644);
 
 static unsigned int sync_threshold;
@@ -387,6 +390,9 @@ static void cpuboost_input_event(struct input_handle *handle,
 {
 	u64 now;
 	unsigned int min_interval;
+	
+	if (!cpu_boost)
+		return;
 
 	if (!input_boost_enabled || work_pending(&input_boost_work))
 		return;
