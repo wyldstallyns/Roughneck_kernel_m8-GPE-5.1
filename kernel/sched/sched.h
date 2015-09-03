@@ -8,7 +8,6 @@
 
 extern __read_mostly int scheduler_running;
 
-extern unsigned int sysctl_sched_ravg_window;
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -423,6 +422,13 @@ struct rq {
 	u64 avg_idle;
 #endif
 
+	/*
+	 * max_freq = user or thermal defined maximum
+	 * max_possible_freq = maximum supported by hardware
+	 */
+	unsigned int cur_freq, max_freq, min_freq, max_possible_freq;
+	u64 cumulative_runnable_avg;
+
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64 prev_irq_time;
 #endif
@@ -485,7 +491,7 @@ DECLARE_PER_CPU(struct rq, runqueues);
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
 #define raw_rq()		(&__raw_get_cpu_var(runqueues))
 
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 struct nr_stats_s {
 	/* time-based average load */
 	u64 nr_last_stamp;
@@ -549,6 +555,25 @@ DECLARE_PER_CPU(int, sd_llc_id);
 
 #include "stats.h"
 #include "auto_group.h"
+
+extern unsigned int sched_ravg_window;
+extern unsigned int max_possible_freq;
+extern unsigned int min_max_freq;
+extern unsigned int pct_task_load(struct task_struct *p);
+extern void init_new_task_load(struct task_struct *p);
+
+static inline void
+inc_cumulative_runnable_avg(struct rq *rq, struct task_struct *p)
+{
+	rq->cumulative_runnable_avg += p->ravg.demand;
+}
+
+static inline void
+dec_cumulative_runnable_avg(struct rq *rq, struct task_struct *p)
+{
+	rq->cumulative_runnable_avg -= p->ravg.demand;
+	BUG_ON((s64)rq->cumulative_runnable_avg < 0);
+}
 
 #ifdef CONFIG_CGROUP_SCHED
 
@@ -942,7 +967,7 @@ extern void cpuacct_charge(struct task_struct *tsk, u64 cputime);
 static inline void cpuacct_charge(struct task_struct *tsk, u64 cputime) {}
 #endif
 
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 static inline unsigned int do_avg_nr_running(struct rq *rq)
 {
 	struct nr_stats_s *nr_stats = &per_cpu(runqueue_stats, rq->cpu);
@@ -964,35 +989,35 @@ static inline unsigned int do_avg_nr_running(struct rq *rq)
 
 static inline void inc_nr_running(struct rq *rq)
 {
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	struct nr_stats_s *nr_stats = &per_cpu(runqueue_stats, rq->cpu);
 #endif
 	sched_update_nr_prod(cpu_of(rq), rq->nr_running, true);
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	write_seqcount_begin(&nr_stats->ave_seqcnt);
 	nr_stats->ave_nr_running = do_avg_nr_running(rq);
 	nr_stats->nr_last_stamp = rq->clock_task;
 #endif
 	rq->nr_running++;
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	write_seqcount_end(&nr_stats->ave_seqcnt);
 #endif
 }
 
 static inline void dec_nr_running(struct rq *rq)
 {
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	struct nr_stats_s *nr_stats = &per_cpu(runqueue_stats, rq->cpu);
 #endif
 
 	sched_update_nr_prod(cpu_of(rq), rq->nr_running, false);
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	write_seqcount_begin(&nr_stats->ave_seqcnt);
 	nr_stats->ave_nr_running = do_avg_nr_running(rq);
 	nr_stats->nr_last_stamp = rq->clock_task;
 #endif
 	rq->nr_running--;
-#ifdef CONFIG_INTELLI_PLUG
+#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_MSM_RUN_QUEUE_STATS_BE_CONSERVATIVE)
 	write_seqcount_end(&nr_stats->ave_seqcnt);
 #endif
 }
