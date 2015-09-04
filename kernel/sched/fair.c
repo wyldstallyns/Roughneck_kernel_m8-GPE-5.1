@@ -3134,6 +3134,7 @@ struct lb_env {
 	unsigned int		loop_max;
 };
 
+static DEFINE_PER_CPU(bool, dbs_boost_needed);
 static DEFINE_PER_CPU(int, dbs_boost_load_moved);
 
 /*
