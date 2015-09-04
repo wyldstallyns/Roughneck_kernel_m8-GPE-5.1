@@ -140,13 +140,14 @@ config CPU_FREQ_DEFAULT_GOV_LIONHEART
 	help
 	  Use the CPUFreq governor 'Lionheart' as default.
 
-config CPU_FREQ_DEFAULT_GOV_PRESERVATIVE
-	bool "preservative"
-	select CPU_FREQ_GOV_PRESERVATIVE
-	select CPU_FREQ_GOV_PERFORMANCE
-	help
-	  Use the CPUFreq governor 'preservative' as default. This allows
-	  you to eat jam.
+config CPU_FREQ_DEFAULT_GOV_ZZMOOVE
+          bool "zzmoove"
+          select CPU_FREQ_GOV_ZZMOOVE
+          select CPU_FREQ_GOV_PERFORMANCE
+          help
+          Use the CPUFreq governor 'zzmoove' as default, using predefined
+          frequency lookup tables and optimized scaling triggers instead of
+          % frequency steps to get smooth up/downscaling dependant on CPU load.
 
 config CPU_FREQ_DEFAULT_GOV_UBERDEMAND
 	bool "uberdemand"
@@ -333,12 +334,14 @@ config CPU_FREQ_GOV_LIONHEART
 	help
 	  'Lionheart' - A brave and agile conservative-based governor.
 
-config CPU_FREQ_GOV_PRESERVATIVE
-	tristate "'preservative' cpufreq governor"
-	help
-	  'preservative' - this driver is good in cakes
-	  If in doubt, say N.
-	  If not in doubt, say N.
+config CPU_FREQ_GOV_ZZMOOVE
+        tristate "'zzmoove' cpufreq governor"
+        depends on CPU_FREQ
+        help
+          'zzmoove' - based on cpufreq_conservative, using predefined
+          frequency lookup tables and optimized scaling triggers instead of
+          % frequency steps to get smooth up/downscaling dependant on CPU load.
+          If in doubt, say N.
 
 config CPU_FREQ_GOV_UBERDEMAND
 	tristate "'uberdemand' cpufreq policy governor"
