@@ -1,19 +1,11 @@
 /*
- * drivers/cpufreq/cpufreq_impulse.c
+ * Impulse - Load Sensitive CPU Frequency Governor
  *
- * Copyright (C) 2015 Google, Inc.
+ * Copyright (c) 2014-2015, Pranav Vashi <neobuddy89@gmail.com>
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * Author: Mike Chan (mike@android.com)
- * Author: Pranav Vashi (neobuddy89@gmail.com)
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  */
 
@@ -30,11 +22,11 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <asm/cputime.h>
-
-static int active_count;
 #ifdef CONFIG_STATE_NOTIFIER
 #include <linux/state_notifier.h>
 #endif
+
+static int active_count;
 
 struct cpufreq_impulse_cpuinfo {
 	struct timer_list cpu_timer;
@@ -74,8 +66,7 @@ static spinlock_t speedchange_cpumask_lock;
 static struct mutex gov_lock;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
-#define DEFAULT_HISPEED_FREQ 1728000
-static unsigned int hispeed_freq = DEFAULT_HISPEED_FREQ;
+static unsigned int hispeed_freq = 1574400;
 
 /* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 99
@@ -95,13 +86,13 @@ static int ntarget_loads = ARRAY_SIZE(default_target_loads);
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
  */
-#define DEFAULT_MIN_SAMPLE_TIME (50 * USEC_PER_MSEC)
+#define DEFAULT_MIN_SAMPLE_TIME (80 * USEC_PER_MSEC)
 static unsigned long min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 
 /*
  * The sample rate of the timer used to increase frequency
  */
-#define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
+#define DEFAULT_TIMER_RATE (50 * USEC_PER_MSEC)
 static unsigned long timer_rate = DEFAULT_TIMER_RATE;
 
 /*
@@ -143,10 +134,9 @@ static bool powersave_bias;
  * Stay at max freq for at least max_freq_hysteresis before dropping
  * frequency.
  */
-#define DEFAULT_MAX_FREQ_HYSTERESIS 100000
-static unsigned int max_freq_hysteresis = DEFAULT_MAX_FREQ_HYSTERESIS;
+static unsigned int max_freq_hysteresis;
 
-static bool io_is_busy = 1;
+static bool io_is_busy;
 
 /* Round to starting jiffy of next evaluation window */
 static u64 round_to_nw_start(u64 jif)
@@ -174,12 +164,12 @@ static void cpufreq_impulse_timer_resched(unsigned long cpu,
 
 	spin_lock_irqsave(&pcpu->load_lock, flags);
 	expires = round_to_nw_start(pcpu->last_evaluated_jiffy);
-	
+
 	if (!slack_only) {
 		pcpu->time_in_idle =
 			get_cpu_idle_time(smp_processor_id(),
-					&pcpu->time_in_idle_timestamp,
-					io_is_busy);
+					  &pcpu->time_in_idle_timestamp,
+					  io_is_busy);
 		pcpu->cputime_speedadj = 0;
 		pcpu->cputime_speedadj_timestamp = pcpu->time_in_idle_timestamp;
 		del_timer(&pcpu->cpu_timer);
@@ -419,7 +409,8 @@ static void cpufreq_impulse_timer(unsigned long data)
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = boost_val || now < boostpulse_endtime ||
-			cpu_load >= go_hispeed_load;
+			check_cpuboost(data) || cpu_load >= go_hispeed_load;
+	boosted = boosted && !suspended;
 	this_hispeed_freq = max(hispeed_freq, pcpu->policy->min);
 
 	if (cpu_load <= go_lowspeed_load && !boost_val) {
@@ -452,7 +443,8 @@ static void cpufreq_impulse_timer(unsigned long data)
 	new_freq = pcpu->freq_table[index].frequency;
 
 	if (new_freq < pcpu->target_freq &&
- 	    now - pcpu->max_freq_hyst_start_time < max_freq_hysteresis) {
+	    now - pcpu->max_freq_hyst_start_time <
+	    max_freq_hysteresis) {
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
 		goto rearm;
 	}
@@ -480,7 +472,7 @@ static void cpufreq_impulse_timer(unsigned long data)
 		pcpu->floor_freq = new_freq;
 		pcpu->floor_validate_time = now;
 	}
-	
+
 	if (new_freq == pcpu->policy->max)
 		pcpu->max_freq_hyst_start_time = now;
 
@@ -583,7 +575,7 @@ static int cpufreq_impulse_speedchange_task(void *data)
 			}
 
 			if (max_freq != pcpu->policy->cur) {
-				if (!powersave_bias)
+				if (!powersave_bias || suspended)
 					__cpufreq_driver_target(pcpu->policy,
 								max_freq,
 								CPUFREQ_RELATION_H);
@@ -649,7 +641,7 @@ static int cpufreq_impulse_notifier(
 	int cpu;
 	unsigned long flags;
 
-	if (val == CPUFREQ_POSTCHANGE) {
+	if (val == CPUFREQ_PRECHANGE) {
 		pcpu = &per_cpu(cpuinfo, freq->cpu);
 		if (!down_read_trylock(&pcpu->enable_sem))
 			return 0;
@@ -839,7 +831,7 @@ static ssize_t store_hispeed_freq(struct kobject *kobj,
 	int ret;
 	long unsigned int val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	hispeed_freq = val;
@@ -861,7 +853,7 @@ static ssize_t store_max_freq_hysteresis(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	max_freq_hysteresis = val;
@@ -884,7 +876,7 @@ static ssize_t store_align_windows(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	align_windows = val;
@@ -906,7 +898,7 @@ static ssize_t store_go_hispeed_load(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	go_hispeed_load = val;
@@ -928,7 +920,7 @@ static ssize_t store_go_lowspeed_load(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	go_lowspeed_load = val;
@@ -950,7 +942,7 @@ static ssize_t store_min_sample_time(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	min_sample_time = val;
@@ -972,7 +964,7 @@ static ssize_t store_timer_rate(struct kobject *kobj,
 	int ret;
 	unsigned long val, val_round;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
@@ -1120,7 +1112,7 @@ static ssize_t store_powersave_bias(struct kobject *kobj,
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	powersave_bias = val;
@@ -1173,6 +1165,7 @@ static int cpufreq_governor_impulse(struct cpufreq_policy *policy,
 {
 	int rc;
 	unsigned int j;
+	unsigned int cpu = policy->cpu;
 	struct cpufreq_impulse_cpuinfo *pcpu;
 	struct cpufreq_frequency_table *freq_table;
 	unsigned long flags;
@@ -1180,13 +1173,13 @@ static int cpufreq_governor_impulse(struct cpufreq_policy *policy,
 
 	switch (event) {
 	case CPUFREQ_GOV_START:
-		if (!cpu_online(policy->cpu))
+		if ((!cpu_online(cpu)) || (!policy->cur))
 			return -EINVAL;
 
 		mutex_lock(&gov_lock);
 
 		freq_table =
-			cpufreq_frequency_get_table(policy->cpu);
+			cpufreq_frequency_get_table(cpu);
 		if (!hispeed_freq)
 			hispeed_freq = policy->max;
 
@@ -1262,12 +1255,11 @@ static int cpufreq_governor_impulse(struct cpufreq_policy *policy,
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
-		if (policy->max < policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->max, CPUFREQ_RELATION_H);
-		else if (policy->min > policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->min, CPUFREQ_RELATION_L);
+		/* If device is being removed, skip set limits */
+		if (!policy->cur)
+			break;
+		__cpufreq_driver_target(policy,
+				policy->cur, CPUFREQ_RELATION_L);
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
 
@@ -1326,7 +1318,7 @@ static int cpufreq_governor_impulse(struct cpufreq_policy *policy,
 
 #ifdef CONFIG_STATE_NOTIFIER
 static int state_notifier_callback(struct notifier_block *this,
-unsigned long event, void *data)
+				unsigned long event, void *data)
 {
 	switch (event) {
 		case STATE_NOTIFIER_ACTIVE:
@@ -1409,14 +1401,9 @@ module_init(cpufreq_impulse_init);
 
 static void __exit cpufreq_impulse_exit(void)
 {
-
-	int cpu;
-	struct cpufreq_impulse_cpuinfo *pcpu;
-
 #ifdef CONFIG_STATE_NOTIFIER
 	state_unregister_client(&notif);
 #endif
-
 	cpufreq_unregister_governor(&cpufreq_gov_impulse);
 	kthread_stop(speedchange_task);
 	put_task_struct(speedchange_task);
@@ -1424,7 +1411,7 @@ static void __exit cpufreq_impulse_exit(void)
 
 module_exit(cpufreq_impulse_exit);
 
-MODULE_AUTHOR("Mike Chan <mike@android.com>");
+MODULE_AUTHOR("Pranav Vashi <neobuddy89@gmail.com>");
 MODULE_DESCRIPTION("'cpufreq_impulse' - A cpufreq governor for "
-	"all purpose.");
-MODULE_LICENSE("GPL");
+	"Latency sensitive workloads");
+MODULE_LICENSE("GPLv2");
