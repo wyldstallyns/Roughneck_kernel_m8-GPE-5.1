@@ -34,14 +34,11 @@
 #include <linux/workqueue.h>
 #include <linux/moduleparam.h>
 #include <linux/jiffies.h>
-#include <linux/earlysuspend.h>
+#include <linux/powersuspend.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
 
 /******************** Tunable parameters: ********************/
 
@@ -236,7 +233,7 @@ static unsigned int ideal_freq;
 static bool is_suspended = false;
 static unsigned int min_sampling_rate;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_POWERSUSPEND
 static struct early_suspend smartmax_early_suspend_handler;
 #endif
 
@@ -880,7 +877,7 @@ static struct attribute_group smartmax_attr_group = {
 	.name = "smartmax",
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_POWERSUSPEND
 static void smartmax_early_suspend(struct early_suspend *h)
 {
 	dprintk(SMARTMAX_DEBUG_SUSPEND, "%s\n", __func__);
@@ -935,7 +932,7 @@ static int cpufreq_governor_smartmax(struct cpufreq_policy *new_policy,
 				mutex_unlock(&dbs_mutex);
 				return rc;
 			}
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_POWERSUSPEND
 			register_early_suspend(&smartmax_early_suspend_handler);
 #endif
 			/* policy latency is in nS. Convert it to uS first */
@@ -981,7 +978,7 @@ static int cpufreq_governor_smartmax(struct cpufreq_policy *new_policy,
 
 		if (!dbs_enable){
 			sysfs_remove_group(cpufreq_global_kobject, &smartmax_attr_group);
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_POWERSUSPEND
 			unregister_early_suspend(&smartmax_early_suspend_handler);
 #endif
 		}
@@ -1044,10 +1041,10 @@ static int __init cpufreq_smartmax_init(void) {
 		mutex_init(&this_smartmax->timer_mutex);
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	smartmax_early_suspend_handler.suspend = smartmax_early_suspend;
-	smartmax_early_suspend_handler.resume = smartmax_late_resume;
-	smartmax_early_suspend_handler.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 100;
+#ifdef CONFIG_POWERSUSPEND
+	smartmax_power_suspend_handler.suspend = smartmax_power_suspend;
+	smartmax_power_suspend_handler.resume = smartmax_late_resume;
+	smartmax_power_suspend_state_panel_hook = new_state;
 #endif
 
 	return cpufreq_register_governor(&cpufreq_gov_smartmax);
