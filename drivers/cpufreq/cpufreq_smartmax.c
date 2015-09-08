@@ -498,7 +498,7 @@ static void cpufreq_smartmax_timer(struct smartmax_info_s *this_smartmax) {
 	}
 
 	/* calculate the scaled load across CPU */
-	load_at_max_freq = (this_smartmax->cur_cpu_load * policy->cur)/policy->cpuinfo.max_freq;
+	load_at_max_freq = (this_smartmax->cur_cpu_load * policy->cur)/policy->max;
 
 	cpufreq_notify_utilization(policy, load_at_max_freq);
 
