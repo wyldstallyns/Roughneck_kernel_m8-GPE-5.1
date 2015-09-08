@@ -149,26 +149,11 @@ config CPU_FREQ_DEFAULT_GOV_ZZMOOVE
           frequency lookup tables and optimized scaling triggers instead of
           % frequency steps to get smooth up/downscaling dependant on CPU load.
 
-config CPU_FREQ_DEFAULT_GOV_UBERDEMAND
-	bool "uberdemand"
-	select CPU_FREQ_GOV_UBERDEMAND
-	select CPU_FREQ_GOV_PERFORMANCE
-	help
-
-config CPU_FREQ_DEFAULT_GOV_HELLSACTIVE
-	bool "hellsactive"
-	select CPU_FREQ_GOV_HELLSACTIVE
-
 config CPU_FREQ_DEFAULT_GOV_IMPULSE
 	bool "impulse"
 	select CPU_FREQ_GOV_IMPULSE
 	help
 	  Use the CPUFreq governor 'impulse' as default.
-
-config CPU_FREQ_DEFAULT_GOV_BLU_ACTIVE
-	bool "blu_active"
-	select CPU_FREQ_GOV_BLU_ACTIVE
-	help
 
 endchoice
 
@@ -273,34 +258,6 @@ config CPU_FREQ_GOV_SMARTMAX
 	help
 	  'smartmax' combined ondemand and smartass2
 
-config CPU_FREQ_GOV_SMARTMAX_TEGRA
-	bool "'smartmax' for tegra"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_30
-	bool "'smartmax' for 3.0 and 3.1 kernels"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_ENRC2B
-	bool "'smartmax' defaults for enrc2b"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_PRIMOU
-	bool "'smartmax' defaults for primou"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_M7
-	bool "'smartmax' defaults for m7"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_APQ8064
-	bool "'smartmax' defaults for apq8064 soc"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
-config CPU_FREQ_GOV_SMARTMAX_MSM8974
-	bool "'smartmax' defaults for msm8974 soc"
-	depends on CPU_FREQ_GOV_SMARTMAX
-
 config CPU_FREQ_GOV_SLIM
 	tristate "'slim' cpufreq policy governor"
 	select CPU_FREQ_TABLE
@@ -343,20 +300,8 @@ config CPU_FREQ_GOV_ZZMOOVE
           % frequency steps to get smooth up/downscaling dependant on CPU load.
           If in doubt, say N.
 
-config CPU_FREQ_GOV_UBERDEMAND
-	tristate "'uberdemand' cpufreq policy governor"
-	select CPU_FREQ_TABLE
-	help
-
-config CPU_FREQ_GOV_HELLSACTIVE
-	tristate "'hellsactive' cpufreq policy governor"
-
 config CPU_FREQ_GOV_IMPULSE
 	tristate "'impulse' cpufreq policy governor"
-
-config CPU_FREQ_GOV_BLU_ACTIVE
-	tristate "'blu_active' cpufreq governor"
-	depends on CPU_FREQ
 
 config CPU_INPUT_BOOST
 	bool "CPU Input Boost"
