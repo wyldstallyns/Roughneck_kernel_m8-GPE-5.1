@@ -559,7 +559,8 @@ DECLARE_PER_CPU(int, sd_llc_id);
 extern unsigned int sched_ravg_window;
 extern unsigned int max_possible_freq;
 extern unsigned int min_max_freq;
-extern unsigned int pct_task_load(struct task_struct *p);
+/* extern unsigned int pct_task_load(struct task_struct *p); */
+unsigned int pct_task_load(struct task_struct *p);
 extern void init_new_task_load(struct task_struct *p);
 
 static inline void
