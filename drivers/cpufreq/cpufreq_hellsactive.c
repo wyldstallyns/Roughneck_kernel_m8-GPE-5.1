@@ -151,7 +151,7 @@ static bool closest_freq_selection;
  * Stay at max freq for at least max_freq_hysteresis before dropping
  * frequency.
  */
-static unsigned int max_freq_hysteresis = 100000;
+static unsigned long max_freq_hysteresis = 100000;
 
 static bool io_is_busy = 1;
 
