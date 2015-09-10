@@ -562,8 +562,6 @@ extern unsigned int min_max_freq;
 extern unsigned int pct_task_load(struct task_struct *p);
 extern void init_new_task_load(struct task_struct *p);
 
-static inline int pct_task_load(struct task_struct *p) { return 0; }
-
 static inline void
 inc_cumulative_runnable_avg(struct rq *rq, struct task_struct *p)
 {
