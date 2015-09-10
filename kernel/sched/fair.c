@@ -267,7 +267,8 @@ static inline struct cfs_rq *group_cfs_rq(struct sched_entity *grp)
 	return grp->my_q;
 }
 
-static void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq);
+static void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq,
+				       int force_update);
 
 static inline void list_add_leaf_cfs_rq(struct cfs_rq *cfs_rq)
 {
@@ -289,7 +290,7 @@ static inline void list_add_leaf_cfs_rq(struct cfs_rq *cfs_rq)
 
 		cfs_rq->on_list = 1;
 		/* We should have no load, but we need to update last_decay. */
-		update_cfs_rq_blocked_load(cfs_rq);
+		update_cfs_rq_blocked_load(cfs_rq, 0);
 	}
 }
 
@@ -1127,17 +1128,115 @@ static __always_inline int __update_entity_runnable_avg(u64 now,
 }
 
 /* Synchronize an entity's decay with its parenting cfs_rq.*/
-static inline void __synchronize_entity_decay(struct sched_entity *se)
+static inline u64 __synchronize_entity_decay(struct sched_entity *se)
 {
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
 	u64 decays = atomic64_read(&cfs_rq->decay_counter);
 
 	decays -= se->avg.decay_count;
 	if (!decays)
-		return;
+		return 0;
 
 	se->avg.load_avg_contrib = decay_load(se->avg.load_avg_contrib, decays);
 	se->avg.decay_count = 0;
+	
+	return decays;
+}
+
+#ifdef CONFIG_FAIR_GROUP_SCHED
+static inline void __update_cfs_rq_tg_load_contrib(struct cfs_rq *cfs_rq,
+						 int force_update)
+{
+	struct task_group *tg = cfs_rq->tg;
+	s64 tg_contrib;
+
+	tg_contrib = cfs_rq->runnable_load_avg + cfs_rq->blocked_load_avg;
+	tg_contrib -= cfs_rq->tg_load_contrib;
+
+	if (force_update || abs64(tg_contrib) > cfs_rq->tg_load_contrib / 8) {
+		atomic64_add(tg_contrib, &tg->load_avg);
+		cfs_rq->tg_load_contrib += tg_contrib;
+	}
+}
+
+/*
+ * Aggregate cfs_rq runnable averages into an equivalent task_group
+ * representation for computing load contributions.
+ */
+static inline void __update_tg_runnable_avg(struct sched_avg *sa,
+						  struct cfs_rq *cfs_rq)
+{
+	struct task_group *tg = cfs_rq->tg;
+	long contrib;
+
+	/* The fraction of a cpu used by this cfs_rq */
+	contrib = div_u64(sa->runnable_avg_sum << NICE_0_SHIFT,
+			  sa->runnable_avg_period + 1);
+	contrib -= cfs_rq->tg_runnable_contrib;
+
+	if (abs(contrib) > cfs_rq->tg_runnable_contrib / 64) {
+		atomic_add(contrib, &tg->runnable_avg);
+		cfs_rq->tg_runnable_contrib += contrib;
+	}
+}
+
+static inline void __update_group_entity_contrib(struct sched_entity *se)
+{
+	struct cfs_rq *cfs_rq = group_cfs_rq(se);
+	struct task_group *tg = cfs_rq->tg;
+	int runnable_avg;
+	
+	u64 contrib;
+
+	contrib = cfs_rq->tg_load_contrib * tg->shares;
+	se->avg.load_avg_contrib = div64_u64(contrib,
+					     atomic64_read(&tg->load_avg) + 1);
+
+	/*
+	 * For group entities we need to compute a correction term in the case
+	 * that they are consuming <1 cpu so that we would contribute the same
+	 * load as a task of equal weight.
+	 *
+	 * Explicitly co-ordinating this measurement would be expensive, but
+	 * fortunately the sum of each cpus contribution forms a usable
+	 * lower-bound on the true value.
+	 *
+	 * Consider the aggregate of 2 contributions.  Either they are disjoint
+	 * (and the sum represents true value) or they are disjoint and we are
+	 * understating by the aggregate of their overlap.
+	 *
+	 * Extending this to N cpus, for a given overlap, the maximum amount we
+	 * understand is then n_i(n_i+1)/2 * w_i where n_i is the number of
+	 * cpus that overlap for this interval and w_i is the interval width.
+	 *
+	 * On a small machine; the first term is well-bounded which bounds the
+	 * total error since w_i is a subset of the period.  Whereas on a
+	 * larger machine, while this first term can be larger, if w_i is the
+	 * of consequential size guaranteed to see n_i*w_i quickly converge to
+	 * our upper bound of 1-cpu.
+	 */
+	runnable_avg = atomic_read(&tg->runnable_avg);
+	if (runnable_avg < NICE_0_LOAD) {
+		se->avg.load_avg_contrib *= runnable_avg;
+		se->avg.load_avg_contrib >>= NICE_0_SHIFT;
+	}
+}
+#else
+static inline void __update_cfs_rq_tg_load_contrib(struct cfs_rq *cfs_rq,
+						 int force_update) {}
+static inline void __update_tg_runnable_avg(struct sched_avg *sa,
+						  struct cfs_rq *cfs_rq) {}
+static inline void __update_group_entity_contrib(struct sched_entity *se) {}
+#endif
+
+static inline void __update_task_entity_contrib(struct sched_entity *se)
+{
+	u32 contrib;
+
+	/* avoid overflowing a 32-bit type w/ SCHED_LOAD_SCALE */
+	contrib = se->avg.runnable_avg_sum * scale_load_down(se->load.weight);
+	contrib /= (se->avg.runnable_avg_period + 1);
+	se->avg.load_avg_contrib = scale_load(contrib);
 }
 
 /* Compute the current contribution to load_avg by se, return any delta */
@@ -1145,12 +1244,12 @@ static long __update_entity_load_avg_contrib(struct sched_entity *se)
 {
 	long old_contrib = se->avg.load_avg_contrib;
 
-	if (!entity_is_task(se))
-		return 0;
-
-	se->avg.load_avg_contrib = div64_u64(se->avg.runnable_avg_sum *
-					     se->load.weight,
-					     se->avg.runnable_avg_period + 1);
+	if (entity_is_task(se)) {
+		__update_task_entity_contrib(se);
+	} else {
+		__update_tg_runnable_avg(&se->avg, group_cfs_rq(se));
+		__update_group_entity_contrib(se);
+	}
 
 	return se->avg.load_avg_contrib - old_contrib;
 }
@@ -1190,25 +1289,34 @@ static inline void update_entity_load_avg(struct sched_entity *se,
  * Decay the load contributed by all blocked children and account this so that
  * their contribution may appropriately discounted when they wake up.
  */
-static void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq)
+static void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq, int force_update)
 {
 	u64 now = rq_of(cfs_rq)->clock_task >> 20;
 	u64 decays;
 
 	decays = now - cfs_rq->last_decay;
-	if (!decays)
+	if (!decays && !force_update)
 		return;
 
-	cfs_rq->blocked_load_avg = decay_load(cfs_rq->blocked_load_avg,
-					      decays);
-	atomic64_add(decays, &cfs_rq->decay_counter);
+	if (atomic64_read(&cfs_rq->removed_load)) {
+		u64 removed_load = atomic64_xchg(&cfs_rq->removed_load, 0);
+		subtract_blocked_load_contrib(cfs_rq, removed_load);
+	}
 
-	cfs_rq->last_decay = now;
+	if (decays) {
+		cfs_rq->blocked_load_avg = decay_load(cfs_rq->blocked_load_avg,
+						      decays);
+		atomic64_add(decays, &cfs_rq->decay_counter);
+		cfs_rq->last_decay = now;
+	}
+	
+	__update_cfs_rq_tg_load_contrib(cfs_rq, force_update);
 }
 
 static inline void update_rq_runnable_avg(struct rq *rq, int runnable)
 {
 	__update_entity_runnable_avg(rq->clock_task, &rq->avg, runnable);
+	__update_tg_runnable_avg(&rq->avg, &rq->cfs);
 }
 
 /* Add the load generated by se into cfs_rq's child load-average */
@@ -1216,20 +1324,42 @@ static inline void enqueue_entity_load_avg(struct cfs_rq *cfs_rq,
 						  struct sched_entity *se,
 						  int wakeup)
 {
-	/* we track migrations using entity decay_count == 0 */
-	if (unlikely(!se->avg.decay_count)) {
+	/*
+	 * We track migrations using entity decay_count <= 0, on a wake-up
+	 * migration we use a negative decay count to track the remote decays
+	 * accumulated while sleeping.
+	 */
+	if (unlikely(se->avg.decay_count <= 0)) {
 		se->avg.last_runnable_update = rq_of(cfs_rq)->clock_task;
+		if (se->avg.decay_count) {
+			/*
+			 * In a wake-up migration we have to approximate the
+			 * time sleeping.  This is because we can't synchronize
+			 * clock_task between the two cpus, and it is not
+			 * guaranteed to be read-safe.  Instead, we can
+			 * approximate this using our carried decays, which are
+			 * explicitly atomically readable.
+			 */
+			se->avg.last_runnable_update -= (-se->avg.decay_count)
+							<< 20;
+			update_entity_load_avg(se, 0);
+			/* Indicate that we're now synchronized and on-rq */
+			se->avg.decay_count = 0;
+		}
 		wakeup = 0;
 	} else {
 		__synchronize_entity_decay(se);
 	}
 
-	if (wakeup)
+	/* migrated tasks did not contribute to our blocked load */
+	if (wakeup) {
 		subtract_blocked_load_contrib(cfs_rq, se->avg.load_avg_contrib);
+		update_entity_load_avg(se, 0);
+	}
 
-	update_entity_load_avg(se, 0);
 	cfs_rq->runnable_load_avg += se->avg.load_avg_contrib;
-	update_cfs_rq_blocked_load(cfs_rq);
+	/* we force update consideration on load-balancer moves */
+	update_cfs_rq_blocked_load(cfs_rq, !wakeup);
 }
 
 /*
@@ -1242,6 +1372,9 @@ static inline void dequeue_entity_load_avg(struct cfs_rq *cfs_rq,
 +						  int sleep)
 {
 	update_entity_load_avg(se, 1);
+	/* we force update consideration on load-balancer moves */
+	update_cfs_rq_blocked_load(cfs_rq, !sleep);
+
 	cfs_rq->runnable_load_avg -= se->avg.load_avg_contrib;
 	if (sleep) {
 		cfs_rq->blocked_load_avg += se->avg.load_avg_contrib;
@@ -1258,7 +1391,8 @@ static inline void enqueue_entity_load_avg(struct cfs_rq *cfs_rq,
 static inline void dequeue_entity_load_avg(struct cfs_rq *cfs_rq,
 					  struct sched_entity *se,
 					  int sleep) {}
-static inline void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq) {}
+static inline void update_cfs_rq_blocked_load(struct cfs_rq *cfs_rq,
+					      int force_update) {}
 #endif
 
 static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
@@ -1663,7 +1797,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	 * Ensure that runnable average is periodically updated.
 	 */
 	update_entity_load_avg(curr, 1);
-	update_cfs_rq_blocked_load(cfs_rq);
+	update_cfs_rq_blocked_load(cfs_rq, 1);
 
 	/*
 	 * Update share accounting for long-running entities.
@@ -3144,6 +3278,19 @@ unlock:
 static void
 migrate_task_rq_fair(struct task_struct *p, int next_cpu)
 {
+	struct sched_entity *se = &p->se;
+	struct cfs_rq *cfs_rq = cfs_rq_of(se);
+
+	/*
+	 * Load tracking: accumulate removed load so that it can be processed
+	 * when we next update owning cfs_rq under rq->lock.  Tasks contribute
+	 * to blocked load iff they have a positive decay-count.  It can never
+	 * be negative here since on-rq tasks have decay-count == 0.
+	 */
+	if (se->avg.decay_count) {
+		se->avg.decay_count = -__synchronize_entity_decay(se);
+		atomic64_add(se->avg.load_avg_contrib, &cfs_rq->removed_load);
+	}
 }
 #endif /* CONFIG_SMP */
 
@@ -3660,7 +3807,7 @@ static int update_shares_cpu(struct task_group *tg, int cpu)
 
 	update_rq_clock(rq);
 	update_cfs_load(cfs_rq, 1);
-	update_cfs_rq_blocked_load(cfs_rq);
+	update_cfs_rq_blocked_load(cfs_rq, 1);
 
 	/*
 	 * We need to update shares after updating tg->load_weight in
@@ -5712,13 +5859,14 @@ void init_cfs_rq(struct cfs_rq *cfs_rq)
 	cfs_rq->min_vruntime_copy = cfs_rq->min_vruntime;
 #endif
 #if defined(CONFIG_FAIR_GROUP_SCHED) && defined(CONFIG_SMP)
-	atomic64_set(&cfs_rq->decay_counter, 1);
+	atomic64_set(&cfs_rq->removed_load, 0);
 #endif
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 static void task_move_group_fair(struct task_struct *p, int on_rq)
 {
+	struct cfs_rq *cfs_rq;
 	/*
 	 * If the task was not on the rq at the time of this cgroup movement
 	 * it must have been asleep, sleeping tasks keep their ->vruntime
@@ -5750,8 +5898,19 @@ static void task_move_group_fair(struct task_struct *p, int on_rq)
 	if (!on_rq)
 		p->se.vruntime -= cfs_rq_of(&p->se)->min_vruntime;
 	set_task_rq(p, task_cpu(p));
-	if (!on_rq)
-		p->se.vruntime += cfs_rq_of(&p->se)->min_vruntime;
+	if (!on_rq) {
+		cfs_rq = cfs_rq_of(&p->se);
+		p->se.vruntime += cfs_rq->min_vruntime;
+#ifdef CONFIG_SMP
+		/*
+		 * migrate_task_rq_fair() will have removed our previous
+		 * contribution, but we must synchronize for ongoing future
+		 * decay.
+		 */
+		p->se.avg.decay_count = atomic64_read(&cfs_rq->decay_counter);
+		cfs_rq->blocked_load_avg += p->se.avg.load_avg_contrib;
+#endif
+	}
 }
 
 void free_fair_sched_group(struct task_group *tg)
