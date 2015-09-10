@@ -6271,6 +6271,7 @@ static void cpu_cgroup_attach(struct cgroup *cgrp,
 						0, NULL);
 #endif
 	}
+}
 
 static void
 cpu_cgroup_exit(struct cgroup *cgrp, struct cgroup *old_cgrp,
