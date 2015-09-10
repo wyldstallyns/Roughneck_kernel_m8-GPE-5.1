@@ -955,8 +955,10 @@ static int de_thread(struct task_struct *tsk)
 		 * group leader (exit_signal = -1) soon. release_task(leader)
 		 * can't delete it.
 		 */
+#ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
 		delete_from_adj_tree(leader);
 		add_2_adj_tree(tsk);
+#endif		
 		list_replace_init(&leader->sibling, &tsk->sibling);
 
 		tsk->group_leader = tsk;
