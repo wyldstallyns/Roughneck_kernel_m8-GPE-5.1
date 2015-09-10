@@ -402,6 +402,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	static unsigned int counter = 0;
 	unsigned int nr_cpus;
 	bool boosted;
+	struct cpufreq_govinfo int_info;
 
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
@@ -421,9 +422,16 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (WARN_ON_ONCE(!delta_time))
 		goto rearm;
 
-	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
+	
+	int_info.cpu = data;
+	int_info.load = loadadjfreq / pcpu->policy->max;
+	int_info.sampling_rate_us = tunables->timer_rate;
+	atomic_notifier_call_chain(&cpufreq_govinfo_notifier_list,
+					CPUFREQ_LOAD_CHANGE, &int_info);
+
+	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = now < (get_input_time() + boostpulse_duration_val);
 	this_hispeed_freq = max(hispeed_freq, pcpu->policy->min);
@@ -616,7 +624,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 			unsigned int j;
 			unsigned int max_freq = 0;
 			struct cpufreq_interactive_cpuinfo *pjcpu;
-			u64 hvt;
+			u64 hvt = ~0ULL;
 
 			pcpu = &per_cpu(cpuinfo, cpu);
 			if (!down_read_trylock(&pcpu->enable_sem))
@@ -1362,12 +1370,8 @@ static int cpufreq_governor_hellsactive(struct cpufreq_policy *policy,
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
-		if (policy->max < policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->max, CPUFREQ_RELATION_H);
-		else if (policy->min > policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->min, CPUFREQ_RELATION_L);
+		__cpufreq_driver_target(policy,
+				policy->cur, CPUFREQ_RELATION_L);
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
 
