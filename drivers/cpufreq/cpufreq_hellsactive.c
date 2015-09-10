@@ -94,7 +94,7 @@ static unsigned long freq_calc_thresh;
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
  */
-#define DEFAULT_MIN_SAMPLE_TIME (80 * USEC_PER_MSEC)
+#define DEFAULT_MIN_SAMPLE_TIME (40 * USEC_PER_MSEC)
 static unsigned long min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 
 /*
@@ -151,7 +151,7 @@ static bool closest_freq_selection;
  * Stay at max freq for at least max_freq_hysteresis before dropping
  * frequency.
  */
-static unsigned int max_freq_hysteresis;
+static unsigned int max_freq_hysteresis = 100000;
 
 static bool io_is_busy = 1;
 
