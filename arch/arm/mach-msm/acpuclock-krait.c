@@ -452,7 +452,7 @@ static inline int calculate_vdd_dig(const struct acpu_level *tgt)
 		   max(l2_pll_vdd_dig, cpu_pll_vdd_dig));
 }
 
-static bool enable_boost = true;
+static bool enable_boost = false;
 module_param_named(boost, enable_boost, bool, S_IRUGO | S_IWUSR);
 
 static inline int calculate_vdd_core(const struct acpu_level *tgt)
@@ -1294,7 +1294,7 @@ int __init acpuclk_krait_init(struct device *dev,
 	acpuclk_register(&acpuclk_krait_data);
 	register_hotcpu_notifier(&acpuclk_cpu_notifier);
 
-	acpuclk_krait_debug_init(&drv);
+	//acpuclk_krait_debug_init(&drv);
 
 	return 0;
 }
