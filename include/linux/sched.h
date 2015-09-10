@@ -145,6 +145,10 @@ extern unsigned long avg_cpu_nr_running(unsigned int cpu);
 #endif
 extern unsigned long nr_iowait_cpu(int cpu);
 extern unsigned long this_cpu_load(void);
+#ifdef CONFIG_INTELLI_PLUG
+extern unsigned long avg_nr_running(void);
+extern unsigned long avg_cpu_nr_running(unsigned int cpu);
+#endif
 
 extern void sched_update_nr_prod(int cpu, unsigned long nr, bool inc);
 extern void sched_get_nr_running_avg(int *avg, int *iowait_avg);
@@ -1213,32 +1217,6 @@ struct sched_statistics {
 };
 #endif
 
-#define RAVG_HIST_SIZE  5
-
-/* ravg represents frequency scaled cpu-demand of tasks */
-struct ravg {
-	/*
-	 * 'window_start' marks the beginning of new window
-	 *
-	 * 'mark_start' marks the beginning of an event (task waking up, task
-	 * starting to execute, task being preempted) within a window
-	 *
-	 * 'sum' represents how runnable a task has been within current
-	 * window. It incorporates both running time and wait time and is
-	 * frequency scaled.
-	 *
-	 * 'sum_history' keeps track of history of 'sum' seen over previous
-	 * RAVG_HIST_SIZE windows. Windows where task was entirely sleeping are
-	 * ignored.
-	 *
-	 * 'demand' represents maximum sum seen over previous RAVG_HIST_SIZE
-	 * windows. 'demand' could drive frequency demand for tasks.
-	 */
-	u64 window_start, mark_start;
-	u32 sum, demand;
-	u32 sum_history[RAVG_HIST_SIZE];
-};
-
 struct sched_entity {
 	struct load_weight	load;		/* for load-balancing */
 	struct rb_node		run_node;
@@ -1314,7 +1292,6 @@ struct task_struct {
 	const struct sched_class *sched_class;
 	struct sched_entity se;
 	struct sched_rt_entity rt;
-	struct ravg ravg;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* list of struct preempt_notifier: */
@@ -2090,8 +2067,6 @@ extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_wakeup_granularity;
 extern unsigned int sysctl_sched_child_runs_first;
 extern unsigned int sysctl_sched_wake_to_idle;
-extern unsigned int sysctl_sched_wakeup_load_threshold;
-extern unsigned int sysctl_sched_window_stats_policy;
 
 enum sched_tunable_scaling {
 	SCHED_TUNABLESCALING_NONE,
@@ -2795,7 +2770,6 @@ struct migration_notify_data {
 	int dest_cpu;
 	int load;
 };
-
 extern long sched_setaffinity(pid_t pid, const struct cpumask *new_mask);
 extern long sched_getaffinity(pid_t pid, struct cpumask *mask);
 
