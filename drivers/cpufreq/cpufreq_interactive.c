@@ -144,7 +144,7 @@ static bool powersave_bias;
  * Stay at max freq for at least max_freq_hysteresis before dropping
  * frequency.
  */
-static unsigned int max_freq_hysteresis = 100000;
+static unsigned long max_freq_hysteresis = 100000;
 
 static bool io_is_busy = true;
 
@@ -396,7 +396,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned long flags;
 	unsigned int this_hispeed_freq;
 	bool boosted;
-	struct cpufreq_govinfo int_info;
 
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
@@ -413,16 +412,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (WARN_ON_ONCE(!delta_time))
 		goto rearm;
 
+	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
-	
-	int_info.cpu = data;
-	int_info.load = loadadjfreq / pcpu->policy->max;
-	int_info.sampling_rate_us = tunables->timer_rate;
-	atomic_notifier_call_chain(&cpufreq_govinfo_notifier_list,
-					CPUFREQ_LOAD_CHANGE, &int_info);
-
-	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = boost_val || now < (get_input_time() + boostpulse_duration_val);
 	this_hispeed_freq = max(hispeed_freq, pcpu->policy->min);
