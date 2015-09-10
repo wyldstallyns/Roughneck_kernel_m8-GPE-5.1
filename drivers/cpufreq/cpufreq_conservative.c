@@ -12,7 +12,7 @@
  */
 
 #include <linux/slab.h>
-#include "cpufreq_governor.h"
+/* #include "cpufreq_governor.h" */
 #include <linux/touchboost.h>
 
 /* Conservative governor macros */
@@ -27,7 +27,6 @@
 #define BOOST_FREQ_VAL				(1497600)
 #define DEFAULT_MIN_LOAD			(5)
 
-static DEFINE_PER_CPU(struct cs_cpu_dbs_info_s, cs_cpu_dbs_info);
 
 static inline unsigned int get_freq_target(struct cs_dbs_tuners *cs_tuners,
 					   unsigned int freq_mult)
@@ -40,6 +39,8 @@ static inline unsigned int get_freq_target(struct cs_dbs_tuners *cs_tuners,
 
 	return freq_target;
 }
+
+static DEFINE_PER_CPU(struct cs_cpu_dbs_info_s, cs_cpu_dbs_info);
 
 /*
  * Every sampling_rate, we check, if current idle time is less than 20%
