@@ -533,7 +533,7 @@
 		interrupt-names = "hc_irq", "pwr_irq";
 		qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 200000000>;
 		qcom,bus-speed-mode = "HS200_1p8v", "DDR_1p8v";
-		qcom,cpu-dma-latency-us = <200>;
+		qcom,cpu-dma-latency-us = <50>;
 
 		qcom,msm-bus,name = "sdhc1";
 		qcom,msm-bus,num-cases = <9>;
@@ -2126,8 +2126,8 @@
 		compatible = "qcom,msm-watchdog";
 		reg = <0xf9017000 0x1000>;
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <18000>;
-		qcom,pet-time = <8000>;
+		qcom,bark-time = <21000>;
+		qcom,pet-time = <20000>;
 		qcom,ipi-ping;
 		htc,scm-regsave-phys = <0x5bf0000>; /* HTC_DEBUG_INFO_PHYS + HTC_DEBUG_INFO_TZLOG_SIZE */
 		htc,scm-regsave-size = <0x1000>; /* SZ_4K */
@@ -2330,11 +2330,11 @@
 		compatible = "qcom,msm-thermal";
 		qcom,sensor-id = <5>;
 		qcom,poll-ms = <250>;
-		qcom,limit-temp = <60>;
+		qcom,limit-temp = <70>;
 		qcom,temp-hysteresis = <10>;
 		qcom,freq-step = <2>;
 		qcom,freq-control-mask = <0xf>;
-		qcom,core-limit-temp = <80>;
+		qcom,core-limit-temp = <90>;
 		qcom,core-temp-hysteresis = <10>;
 		qcom,core-control-mask = <0xe>;
 		qcom,hotplug-temp = <110>;
@@ -2347,8 +2347,8 @@
 		qcom,freq-mitigation-control-mask = <0x01>;
 		qcom,vdd-restriction-temp = <5>;
 		qcom,vdd-restriction-temp-hysteresis = <10>;
-		qcom,pmic-sw-mode-temp = <85>;
-		qcom,pmic-sw-mode-temp-hysteresis = <75>;
+		qcom,pmic-sw-mode-temp = <90>;
+		qcom,pmic-sw-mode-temp-hysteresis = <80>;
 		qcom,pmic-sw-mode-regs = "vdd-dig";
 		vdd-dig-supply = <&pm8841_s2_floor_corner>;
 		vdd-gfx-supply = <&pm8841_s4_floor_corner>;
