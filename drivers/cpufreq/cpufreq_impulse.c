@@ -66,7 +66,7 @@ static spinlock_t speedchange_cpumask_lock;
 static struct mutex gov_lock;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
-static unsigned int hispeed_freq = 1574400;
+static unsigned int hispeed_freq = 1190400;
 
 /* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 99
@@ -106,12 +106,11 @@ static spinlock_t above_hispeed_delay_lock;
 static unsigned int *above_hispeed_delay = default_above_hispeed_delay;
 static int nabove_hispeed_delay = ARRAY_SIZE(default_above_hispeed_delay);
 
-/* Non-zero means indefinite speed boost active */
-static int boost_val;
-/* Duration of a boot pulse in usecs */
-static int boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
-/* End time of boost pulse in ktime converted to usecs */
-static u64 boostpulse_endtime;
+/* 1000000us - 1s */
+#define DEFAULT_BOOSTPULSE_DURATION 1000000
+static int boostpulse_duration_val = DEFAULT_BOOSTPULSE_DURATION;
+#define DEFAULT_INPUT_BOOST_FREQ 1497600
+int input_boost_freq = DEFAULT_INPUT_BOOST_FREQ;
 
 /*
  * Max additional time to wait in idle, beyond timer_rate, at speeds above
@@ -134,7 +133,7 @@ static bool powersave_bias;
  * Stay at max freq for at least max_freq_hysteresis before dropping
  * frequency.
  */
-static unsigned int max_freq_hysteresis;
+static unsigned int max_freq_hysteresis = 100000;
 
 static bool io_is_busy;
 
@@ -408,8 +407,7 @@ static void cpufreq_impulse_timer(unsigned long data)
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->policy->cur;
-	boosted = boost_val || now < boostpulse_endtime ||
-			check_cpuboost(data) || cpu_load >= go_hispeed_load;
+	boosted = boost_val || now < (get_input_time() + boostpulse_duration_val);
 	boosted = boosted && !suspended;
 	this_hispeed_freq = max(hispeed_freq, pcpu->policy->min);
 
@@ -421,7 +419,7 @@ static void cpufreq_impulse_timer(unsigned long data)
 	}
 
 	if (boosted)
-		new_freq = max(new_freq, this_hispeed_freq);
+		new_freq = max(new_freq, input_boost_freq);
 
 	if (pcpu->policy->cur >= this_hispeed_freq &&
 	    new_freq > pcpu->policy->cur &&
@@ -1025,7 +1023,6 @@ static ssize_t store_boost(struct kobject *kobj, struct attribute *attr,
 		cpufreq_impulse_boost();
 	else
 		boostpulse_endtime = ktime_to_us(ktime_get());
-
 	return count;
 }
 
