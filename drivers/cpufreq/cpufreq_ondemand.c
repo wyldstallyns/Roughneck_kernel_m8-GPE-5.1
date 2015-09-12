@@ -138,6 +138,8 @@ static struct dbs_tuners {
 	unsigned int sampling_down_factor;
 	int          powersave_bias;
 	unsigned int io_is_busy;
+	unsigned int input_boost_freq;
+	unsigned int input_boost_duration;
 } dbs_tuners_ins = {
 	.up_threshold_multi_core = DEF_FREQUENCY_UP_THRESHOLD,
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -148,6 +150,8 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.optimal_freq = 0,
+	.input_boost_freq = BOOST_FREQ_VAL,
+	.input_boost_duration = BOOST_DURATION_US,
 };
 
 static inline u64 get_cpu_iowait_time(unsigned int cpu, u64 *wall)
@@ -278,6 +282,8 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(down_differential_multi_core, down_differential_multi_core);
 show_one(optimal_freq, optimal_freq);
 show_one(up_threshold_any_cpu_load, up_threshold_any_cpu_load);
+show_one(input_boost_freq, input_boost_freq);
+show_one(input_boost_duration, input_boost_duration);
 
 static ssize_t show_powersave_bias
 (struct kobject *kobj, struct attribute *attr, char *buf)
@@ -621,6 +627,40 @@ skip_this_cpu_bypass:
 	return count;
 }
 
+static ssize_t store_input_boost_freq(struct kobject *a, struct attribute *b,
+                               const char *buf, size_t count)
+{
+        unsigned int input;
+        int ret;
+        ret = sscanf(buf, "%u", &input);
+
+        if (ret != 1)
+                return -EINVAL;
+
+        if (input < 0)
+                input = 0;
+
+        dbs_tuners_ins.input_boost_freq = input;
+        return count;
+}
+
+static ssize_t store_input_boost_duration(struct kobject *a, struct attribute *b,
+                               const char *buf, size_t count)
+{
+        unsigned int input;
+        int ret;
+        ret = sscanf(buf, "%u", &input);
+
+        if (ret != 1)
+                return -EINVAL;
+
+        if (input < 0)
+                input = 0;
+
+        dbs_tuners_ins.input_boost_duration = input;
+        return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
@@ -632,6 +672,8 @@ define_one_global_rw(up_threshold_multi_core);
 define_one_global_rw(down_differential_multi_core);
 define_one_global_rw(optimal_freq);
 define_one_global_rw(up_threshold_any_cpu_load);
+define_one_global_rw(input_boost_freq);
+define_one_global_rw(input_boost_duration);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -646,6 +688,8 @@ static struct attribute *dbs_attributes[] = {
 	&down_differential_multi_core.attr,
 	&optimal_freq.attr,
 	&up_threshold_any_cpu_load.attr,
+	&input_boost_freq.attr,
+	&input_boost_duration.attr,
 	NULL
 };
 
