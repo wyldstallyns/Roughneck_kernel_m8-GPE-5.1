@@ -43,6 +43,8 @@
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
+#define BOOST_DURATION_US			(1000000)
+#define BOOST_FREQ_VAL				(1497600)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -61,8 +63,6 @@ static unsigned int min_sampling_rate;
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
-#define BOOST_DURATION_US			(1000000)
-#define BOOST_FREQ_VAL				(1497600)
 
 #define POWERSAVE_BIAS_MAXLEVEL			(1000)
 #define POWERSAVE_BIAS_MINLEVEL			(-1000)
