@@ -26,6 +26,7 @@
 #include <linux/sched.h>
 #include <linux/workqueue.h>
 #include <linux/slab.h>
+#include <linux/touchboost.h>
 
 /*
  * dbs is used in this file as a shortform for demandbased switching
@@ -674,9 +675,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	unsigned int max_load_other_cpu = 0;
 	struct cpufreq_policy *policy;
 	unsigned int j;
+	bool boosted;
+	u64 now;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
+	
+	now = ktime_to_us(ktime_get());
+	boosted = now < (get_input_time() + get_input_boost_duration());
 
 	/*
 	 * Every sampling_rate, we check, if current idle time is less
@@ -833,7 +839,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 		/* No longer fully busy, reset rate_mult */
 		this_dbs_info->rate_mult = 1;
+		
+		if (boosted && policy->cur < input_boost_freq
+		     && freq_next < input_boost_freq)
+			freq_next = input_boost_freq;
 
+		if (boosted && policy->cur <= input_boost_freq)
+			return;
+		
 		if (freq_next < policy->min)
 			freq_next = policy->min;
 
